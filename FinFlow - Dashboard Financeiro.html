@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinFlow – Dashboard Financeiro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'sans-serif'],
+                        body: ['DM Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'DM Sans', sans-serif; }
+        h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+        #toast {
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            opacity: 0;
+            transform: translateY(12px);
+            pointer-events: none;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        #donut-canvas { display: block; margin: 0 auto; }
+
+        @keyframes rowIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .row-animate { animation: rowIn 0.25s ease forwards; }
+
+        #sidebar {
+            transition: transform 0.3s ease, width 0.3s ease;
+        }
+
+        @keyframes negPulse {
+            0%, 100% { color: #f43f5e; }
+            50% { color: #fb7185; }
+        }
+        .negative-balance { animation: negPulse 2s ease-in-out infinite; }
+
+        .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-card:hover { transform: translateY(-2px); }
+
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-[#0b1120] dark:text-slate-200 antialiased transition-colors duration-300">
+
+    <div id="toast" class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl text-sm font-semibold">
+        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 dark:text-emerald-600 flex-shrink-0"></i>
+        <span id="toast-msg">Lançamento adicionado!</span>
+    </div>
+
+    <div class="flex min-h-screen">
+
+        <aside id="sidebar" class="w-60 bg-white dark:bg-[#111827] border-r border-slate-100 dark:border-slate-800/60 p-5 flex-col justify-between fixed inset-y-0 left-0 z-40 hidden md:flex">
+            <div>
+                <div class="flex items-center gap-3 mb-10 px-1">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                        <i data-lucide="layers" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <span class="font-display font-bold text-xl text-slate-900 dark:text-white tracking-tight">FinFlow</span>
+                </div>
+
+                <nav class="space-y-1">
+                    <a href="#" class="nav-link active flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold text-sm transition-all">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 flex-shrink-0"></i>
+                        Dashboard
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium text-sm transition-all group">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform"></i>
+                        Planejamento
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium text-sm transition-all group">
+                        <i data-lucide="settings-2" class="w-4 h-4 flex-shrink-0 group-hover:rotate-45 transition-transform"></i>
+                        Configurações
+                    </a>
+                </nav>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">D</div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">Desenvolvedor</p>
+                        <p class="text-[10px] text-slate-400 dark:text-slate-500 truncate">conta pessoal</p>
+                    </div>
+                </div>
+                <button class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 font-medium text-sm transition-all group">
+                    <i data-lucide="log-out" class="w-4 h-4 flex-shrink-0 group-hover:-translate-x-0.5 transition-transform"></i>
+                    Sair
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 md:ml-60 p-5 md:p-8 max-w-full space-y-8">
+
+            <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 class="font-display text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Olá, Joaquim Neto! 👋</h1>
+                    <p class="text-slate-400 dark:text-slate-500 text-sm mt-0.5">Gerencie seu fluxo financeiro com clareza.</p>
+                </div>
+                <div class="flex items-center gap-2.5 self-start sm:self-auto">
+                    <div id="current-date" class="text-[11px] font-semibold tracking-wide bg-white dark:bg-[#111827] text-slate-500 dark:text-slate-400 px-3.5 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60"></div>
+                    <button id="theme-toggle" title="Alternar tema" class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-[#111827] border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-all">
+                        <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </header>
+
+            <section class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div class="stat-card bg-white dark:bg-[#111827] p-5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between">
+                    <div class="space-y-1">
+                        <p class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Saldo Atual:</p>
+                        <h3 id="balance-value" class="font-display text-2xl font-bold text-slate-900 dark:text-white">R$ 0,00</h3>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700/40">
+                        <i data-lucide="wallet" class="w-5 h-5 text-slate-600 dark:text-slate-300"></i>
+                    </div>
+                </div>
+                <div class="stat-card bg-white dark:bg-[#111827] p-5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between">
+                    <div class="space-y-1">
+                        <p class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Receitas:</p>
+                        <h3 id="income-value" class="font-display text-2xl font-bold text-emerald-500">R$ 0,00</h3>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/30">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-emerald-500"></i>
+                    </div>
+                </div>
+                <div class="stat-card bg-white dark:bg-[#111827] p-5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between">
+                    <div class="space-y-1">
+                        <p class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Despesas:</p>
+                        <h3 id="expense-value" class="font-display text-2xl font-bold text-rose-500">R$ 0,00</h3>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center border border-rose-100 dark:border-rose-900/30">
+                        <i data-lucide="trending-down" class="w-5 h-5 text-rose-500"></i>
+                    </div>
+                </div>
+            </section>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+                <section class="bg-white dark:bg-[#111827] p-6 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-5">
+                    <h2 class="font-display font-bold text-slate-900 dark:text-white flex items-center gap-2 text-base">
+                        <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-500"></i> Nova Transação
+                    </h2>
+                    <form id="transaction-form" class="space-y-4" novalidate>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Descrição:</label>
+                            <input id="form-description" type="text" required maxlength="80" placeholder="Ex: Aluguel, Salário…"
+                                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Valor (R$):</label>
+                            <input id="form-amount" type="number" step="0.01" min="0.01" required placeholder="0,00"
+                                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Data:</label>
+                            <input id="form-date" type="date" required
+                                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all text-slate-700 dark:text-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Tipo:</label>
+                            <div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                                <button type="button" id="btn-income" class="py-2 rounded-lg text-xs font-bold tracking-widest transition-all">RECEITA</button>
+                                <button type="button" id="btn-expense" class="py-2 rounded-lg text-xs font-bold tracking-widest transition-all">DESPESA</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Categoria:</label>
+                            <input id="form-category" type="text" required maxlength="40" placeholder="Ex: Alimentação, Lazer…"
+                                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600">
+                        </div>
+                        <button type="submit"
+                            class="w-full py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-white rounded-xl font-semibold text-sm tracking-wide transition-all active:scale-[0.98] shadow-sm">
+                            Confirmar Lançamento
+                        </button>
+                    </form>
+                </section>
+
+                <div class="lg:col-span-2 space-y-6">
+                    <section id="chart-section" class="bg-white dark:bg-[#111827] p-6 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm hidden">
+                        <h2 class="font-display font-bold text-slate-900 dark:text-white text-base mb-5 flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-400"></i> Distribuição por Categoria
+                        </h2>
+                        <div class="flex flex-col sm:flex-row items-center gap-6">
+                            <canvas id="donut-canvas" width="160" height="160" class="flex-shrink-0"></canvas>
+                            <ul id="chart-legend" class="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-slate-600 dark:text-slate-400"></ul>
+                        </div>
+                    </section>
+
+                    <section class="bg-white dark:bg-[#111827] rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-50 dark:border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div>
+                                <h2 class="font-display font-bold text-slate-900 dark:text-white text-base">Extrato</h2>
+                                <span id="transaction-count" class="text-[11px] font-bold tracking-widest uppercase text-slate-400 dark:text-slate-500">0 lançamentos</span>
+                            </div>
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <select id="filter-type" class="text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer">
+                                    <option value="all">Todos</option>
+                                    <option value="income">Receitas</option>
+                                    <option value="expense">Despesas</option>
+                                </select>
+                                <div class="relative flex-1 sm:w-52">
+                                    <input id="search-input" type="text" placeholder="Buscar…"
+                                        class="w-full pl-8 pr-3 py-2 border border-slate-200 dark:border-slate-700/80 rounded-xl bg-transparent text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all">
+                                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none"></i>
+                                </div>
+                                <button id="btn-clear-all" title="Limpar todos os dados" class="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-slate-200 dark:border-slate-700/80 transition-all flex-shrink-0">
+                                    <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-slate-50/80 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800/60 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                        <th class="py-3.5 px-5">Descrição</th>
+                                        <th class="py-3.5 px-5 hidden sm:table-cell">Categoria</th>
+                                        <th class="py-3.5 px-5 hidden md:table-cell">Data</th>
+                                        <th class="py-3.5 px-5 text-right">Valor</th>
+                                        <th class="py-3.5 px-5 text-center">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactions-table-body" class="divide-y divide-slate-50 dark:divide-slate-800/40 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function escapeHTML(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
+
+const formatCurrency = v =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const themeToggle = $('theme-toggle');
+const themeIcon   = $('theme-icon');
+
+function applyTheme(dark) {
+    document.documentElement.classList.toggle('dark', dark);
+    themeIcon.setAttribute('data-lucide', dark ? 'sun' : 'moon');
+    lucide.createIcons();
+}
+
+const savedTheme = localStorage.getItem('finflow_theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+applyTheme(savedTheme ? savedTheme === 'dark' : prefersDark);
+
+themeToggle.addEventListener('click', () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    localStorage.setItem('finflow_theme', isDark ? 'light' : 'dark');
+    applyTheme(!isDark);
+    drawDonut();
+});
+
+const DEFAULT_TRANSACTIONS = [
+    { id: '1', description: 'Faturamento de Contrato', amount: 8500.00, type: 'income',  category: 'Trabalho',  date: '2026-05-15' },
+    { id: '2', description: 'Infraestrutura Cloud',    amount: 1240.50, type: 'expense', category: 'Serviços',  date: '2026-05-14' },
+    { id: '3', description: 'Curso Online',             amount: 349.90,  type: 'expense', category: 'Educação',  date: '2026-05-13' },
+    { id: '4', description: 'Freelance Design',         amount: 2000.00, type: 'income',  category: 'Trabalho',  date: '2026-05-10' },
+];
+
+let transactions = [];
+try {
+    const raw = localStorage.getItem('finflow_transactions');
+    transactions = raw ? JSON.parse(raw) : [...DEFAULT_TRANSACTIONS];
+} catch {
+    transactions = [...DEFAULT_TRANSACTIONS];
+}
+
+let selectedType = 'income';
+let searchTerm   = '';
+let filterType   = 'all';
+
+const form        = $('transaction-form');
+const btnIncome   = $('btn-income');
+const btnExpense  = $('btn-expense');
+const searchInput = $('search-input');
+const filterSel   = $('filter-type');
+const tableBody   = $('transactions-table-body');
+
+function setType(type) {
+    selectedType = type;
+    if (type === 'income') {
+        btnIncome.className  = 'py-2 rounded-lg text-xs font-bold tracking-widest transition-all shadow-sm bg-white dark:bg-[#1e293b] text-emerald-600 dark:text-emerald-400 border border-slate-100 dark:border-slate-700/40';
+        btnExpense.className = 'py-2 rounded-lg text-xs font-bold tracking-widest transition-all text-slate-400 dark:text-slate-500';
+    } else {
+        btnExpense.className = 'py-2 rounded-lg text-xs font-bold tracking-widest transition-all shadow-sm bg-white dark:bg-[#1e293b] text-rose-600 dark:text-rose-400 border border-slate-100 dark:border-slate-700/40';
+        btnIncome.className  = 'py-2 rounded-lg text-xs font-bold tracking-widest transition-all text-slate-400 dark:text-slate-500';
+    }
+}
+
+btnIncome.addEventListener('click', () => setType('income'));
+btnExpense.addEventListener('click', () => setType('expense'));
+setType('income');
+
+let toastTimer;
+function showToast(msg, isError = false) {
+    const el = $('toast');
+    const msgEl = $('toast-msg');
+    msgEl.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+const CHART_COLORS = [
+    '#10b981','#6366f1','#f59e0b','#3b82f6','#ec4899',
+    '#14b8a6','#8b5cf6','#f97316','#06b6d4','#84cc16'
+];
+
+function drawDonut() {
+    const canvas = $('donut-canvas');
+    const ctx = canvas.getContext('2d');
+    const expenses = transactions.filter(t => t.type === 'expense');
+    const legend = $('chart-legend');
+    const section = $('chart-section');
+
+    if (expenses.length === 0) { section.classList.add('hidden'); return; }
+    section.classList.remove('hidden');
+
+    const catMap = {};
+    expenses.forEach(t => { catMap[t.category] = (catMap[t.category] || 0) + t.amount; });
+    const cats = Object.entries(catMap).sort((a,b) => b[1] - a[1]);
+    const total = cats.reduce((s, [,v]) => s + v, 0);
+
+    const cx = 80, cy = 80, R = 68, r = 44;
+    ctx.clearRect(0, 0, 160, 160);
+    let angle = -Math.PI / 2;
+    cats.forEach(([, val], i) => {
+        const slice = (val / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, R, angle, angle + slice);
+        ctx.closePath();
+        ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+        ctx.fill();
+        angle += slice;
+    });
+
+    const isDark = document.documentElement.classList.contains('dark');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? '#111827' : '#ffffff';
+    ctx.fill();
+
+    ctx.fillStyle = isDark ? '#e2e8f0' : '#1e293b';
+    ctx.font = 'bold 11px Syne, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(formatCurrency(total), cx, cy);
+
+    legend.innerHTML = cats.map(([cat, val], i) => `
+        <li class="flex items-center gap-1.5">
+            <span style="background:${CHART_COLORS[i % CHART_COLORS.length]}" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></span>
+            <span>${escapeHTML(cat)}</span>
+            <span class="font-semibold text-slate-700 dark:text-slate-300">${((val/total)*100).toFixed(0)}%</span>
+        </li>
+    `).join('');
+}
+
+function updateUI() {
+    localStorage.setItem('finflow_transactions', JSON.stringify(transactions));
+
+    const income  = transactions.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
+    const expense = transactions.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
+    const balance = income - expense;
+
+    $('income-value').textContent  = formatCurrency(income);
+    $('expense-value').textContent = formatCurrency(expense);
+
+    const balEl = $('balance-value');
+    balEl.textContent = formatCurrency(balance);
+    balEl.className = balance < 0
+        ? 'font-display text-2xl font-bold negative-balance'
+        : 'font-display text-2xl font-bold text-slate-900 dark:text-white';
+
+    const filtered = transactions
+        .filter(t => filterType === 'all' || t.type === filterType)
+        .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                     t.category.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    $('transaction-count').textContent = `${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}`;
+
+    tableBody.innerHTML = '';
+
+    if (filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr><td colspan="5" class="py-14 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
+                <div class="flex flex-col items-center gap-2">
+                    <i data-lucide="inbox" class="w-8 h-8 opacity-30"></i>
+                    Nenhum registro encontrado.
+                </div>
+            </td></tr>`;
+        lucide.createIcons();
+        drawDonut();
+        return;
+    }
+
+    filtered.forEach((t, idx) => {
+        const [y, m, d] = t.date.split('-');
+        const dateFmt = `${d}/${m}/${y}`;
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/60 dark:hover:bg-slate-800/20 transition-colors group row-animate';
+        tr.style.animationDelay = `${idx * 30}ms`;
+        tr.innerHTML = `
+            <td class="py-4 px-5 font-semibold text-slate-800 dark:text-slate-200 max-w-[180px] truncate">
+                ${escapeHTML(t.description)}
+            </td>
+            <td class="py-4 px-5 hidden sm:table-cell">
+                <span class="inline-block px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide uppercase
+                    bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/30 dark:border-slate-700/30">
+                    ${escapeHTML(t.category)}
+                </span>
+            </td>
+            <td class="py-4 px-5 text-slate-400 dark:text-slate-500 text-sm hidden md:table-cell">${escapeHTML(dateFmt)}</td>
+            <td class="py-4 px-5 text-right font-bold tabular-nums ${t.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}">
+                ${t.type === 'income' ? '+' : '−'} ${formatCurrency(t.amount)}
+            </td>
+            <td class="py-4 px-5 text-center">
+                <button
+                    data-id="${escapeHTML(t.id)}"
+                    class="delete-btn w-7 h-7 inline-flex items-center justify-center rounded-lg
+                        text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400
+                        hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all
+                        opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    title="Remover">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+    drawDonut();
+}
+
+tableBody.addEventListener('click', e => {
+    const btn = e.target.closest('.delete-btn');
+    if (!btn) return;
+    transactions = transactions.filter(t => t.id !== btn.dataset.id);
+    updateUI();
+    showToast('Lançamento removido.');
+});
+
+$('btn-clear-all').addEventListener('click', () => {
+    if (!transactions.length) return;
+    if (!confirm('Deseja apagar todos os lançamentos? Esta ação não pode ser desfeita.')) return;
+    transactions = [];
+    updateUI();
+    showToast('Todos os dados foram removidos.');
+});
+
+searchInput.addEventListener('input', e => { searchTerm = e.target.value; updateUI(); });
+filterSel.addEventListener('change', e => { filterType = e.target.value; updateUI(); });
+
+$('form-date').value = new Date().toISOString().split('T')[0];
+
+form.addEventListener('submit', e => {
+    e.preventDefault();
+    const description = $('form-description').value.trim();
+    const amount      = parseFloat($('form-amount').value);
+    const category    = $('form-category').value.trim();
+    const date        = $('form-date').value;
+
+    if (!description || isNaN(amount) || amount <= 0 || !category || !date) {
+        showToast('Preencha todos os campos corretamente.', true);
+        return;
+    }
+
+    transactions.unshift({ id: Date.now().toString(), description, amount, type: selectedType, category, date });
+    updateUI();
+    form.reset();
+    $('form-date').value = new Date().toISOString().split('T')[0];
+    setType('income');
+    showToast(`Lançamento "${description}" adicionado!`);
+});
+
+$('current-date').textContent = new Date().toLocaleDateString('pt-BR', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'
+}).toUpperCase();
+
+updateUI();
+lucide.createIcons();
+</script>
+</body>
+</html>
